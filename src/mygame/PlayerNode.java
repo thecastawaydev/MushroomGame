@@ -4,10 +4,12 @@
  */
 package mygame;
 
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
+import com.jme3.animation.AnimEventListener;
+import com.jme3.animation.LoopMode;
 import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.control.CharacterControl;
-import com.jme3.collision.CollisionResult;
-import com.jme3.collision.CollisionResults;
 import com.jme3.input.InputManager;
 import com.jme3.input.KeyInput;
 import com.jme3.input.MouseInput;
@@ -17,8 +19,6 @@ import com.jme3.input.controls.KeyTrigger;
 import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
-import com.jme3.math.Ray;
-import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
 import com.jme3.renderer.queue.RenderQueue.ShadowMode;
@@ -28,7 +28,10 @@ import com.jme3.scene.Spatial;
  *
  * @author christian
  */
-public class PlayerNode extends Node implements ActionListener, AnalogListener{
+public class PlayerNode extends Node implements ActionListener, AnalogListener, AnimEventListener{
+    boolean isClicked = false;
+    private AnimChannel channel;
+    private AnimControl control;
     
     private ThirdPersonCamera camera;
     private Camera cam;
@@ -47,7 +50,7 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
     private float walkSpeed = .15f;
     private float stepSize = .05f;
     
-    public PlayerNode(Spatial model, InputManager inputManager, Camera cam, Spatial sceneModel)
+    public PlayerNode( Spatial model, InputManager inputManager, Camera cam, Spatial sceneModel)
     {
         super();
         this.cam = cam;
@@ -60,11 +63,16 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
         this.attachChild(this.model);
         
         CapsuleCollisionShape playerShape = new CapsuleCollisionShape(0.5f, 1f);
+        
         characterControl = new CharacterControl(playerShape, stepSize);
         this.addControl(characterControl);
         
         this.inputManager = inputManager;
         setUpKeys();
+        
+        control = new AnimControl();
+        control.addListener(this);
+        channel = control.createChannel();
     }
     
     public void update(float tpf)
@@ -151,11 +159,11 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
         inputManager.addListener(this, "RightClick");
         inputManager.addListener(this, "SetModel");
     }   
-    
+
     public void onAnalog(String binding, float intensity, float tpf)
     {
 
-        if(binding.equals("LeftClick")){
+        /*if(binding.equals("LeftClick")){
             CollisionResults results = new CollisionResults();
             Vector2f click2d = inputManager.getCursorPosition();
             Vector3f click3d = cam.getWorldCoordinates(new Vector2f(click2d.getX(), click2d.getY()), 0f);
@@ -164,12 +172,17 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
             Main.s_TreeNode.collideWith(ray, results);
             
             if(results.size() > 0){
-                Spatial target = results.getClosestCollision().getGeometry();                    
+                Spatial target = results.getClosestCollision().getGeometry(); 
+                     InventoryHelper.AddToInventory(target, 1);
                 ObjectHelper.RemoveModel(target);
             }
+            //isClicked = true;
+            
+           
         }
         
-        if(binding.equals("RightClick")){
+        
+        /*if(binding.equals("RightClick")){
              CollisionResults results = new CollisionResults();
              Ray ray = new Ray();
             Vector2f click2d = inputManager.getCursorPosition();
@@ -192,7 +205,7 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
                 Statics.s_PlayerSettingModel = true;
                 }
             }
-        }
+        }*/
        
     }
 
@@ -205,6 +218,8 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
         }
         else if(binding.equals("Up")){
             up = value;
+            channel.setAnim("my_animation", 0.5f);
+            channel.setLoopMode(LoopMode.Loop);
         }
         else if(binding.equals("Down")){
             down = value;
@@ -233,6 +248,14 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
                 Statics.s_PlayerSettingModel = false;
             }
         }
+        
+        if(binding.equals("LeftClick") && !value){
+            isClicked = true;
+            if(isClicked){
+                ObjectHelper.damageObject(cam, inputManager, sceneModel);
+                isClicked = false;
+            }
+        }
     }
 
     public CharacterControl getCharacterControl()
@@ -241,5 +264,13 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener{
     }
     public ThirdPersonCamera getCameraNode(){
         return camera;
+    }
+
+    public void onAnimCycleDone(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    public void onAnimChange(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

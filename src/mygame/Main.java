@@ -1,5 +1,8 @@
 package mygame;
 
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
+import com.jme3.animation.AnimEventListener;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
@@ -12,7 +15,7 @@ import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 
-public class Main extends SimpleApplication {
+public class Main extends SimpleApplication implements AnimEventListener{
 
     public static Node s_TreeNode;
     public static AssetManager s_AssetManager;
@@ -26,7 +29,8 @@ public class Main extends SimpleApplication {
     private Sun sun;
     
     BitmapText hudText;
-    Inventory inventory;
+    public static Inventory inventory;
+    Rect testRect;
     
     public static void main(String[] args) {
         Main app = new Main();
@@ -35,14 +39,18 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
+        testRect = new Rect(50, 50, 200, 200);
         
         s_TreeNode = new Node();
         s_AssetManager = assetManager;
         s_StateManager = stateManager;
         s_InputManager = inputManager;
-        inventory = new Inventory(this, guiNode, rootNode, cam);
+
+        
+        
         ObjectHelper.LoadObjectHelper();
-                      
+        ItemInformation.InitItemInfo();
+        
         mouseInput.setCursorVisible(true);
         flyCam.setEnabled(false);
         
@@ -53,14 +61,17 @@ public class Main extends SimpleApplication {
         mainScene.initScene(rootNode);
         sun = new Sun();
         sun.initSun(rootNode, viewPort, cam);
-        
-        Spatial mushroom = assetManager.loadModel("Models/mushroom.obj");
+        inventory = new Inventory(this, guiNode, rootNode, cam, mainScene.sceneModel);
+        Spatial mushroom = assetManager.loadModel("Models/MushroomAnim2/mushroom.mesh.xml");
+        mushroom.rotate(0, 77, 0);
         player = new PlayerNode(mushroom, inputManager, cam, mainScene.sceneModel);
-        player.getCharacterControl().setPhysicsLocation(new Vector3f(0, 2f, 0));
+        player.getCharacterControl().setPhysicsLocation(new Vector3f(0, 4f, 0));
         rootNode.attachChild(player);
         bulletAppState.getPhysicsSpace().add(player);
         
         Spatial model =  ObjectHelper.AddModel(new Vector3f(5, 0, 5), "tree");
+        Spatial model1 = ObjectHelper.AddModel(new Vector3f(5, 0, 8), "rock");
+        s_TreeNode.attachChild(model1);
         s_TreeNode.attachChild(model);
         
                           
@@ -74,12 +85,23 @@ public class Main extends SimpleApplication {
         hudText.setLocalTranslation(300, hudText.getLineHeight(), 0);
         guiNode.attachChild(hudText);
         
+
+        /*Material mat = new Material(getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.setColor("Color", new ColorRGBA(1, 0, 0, 0.5f));
+        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
+        
+        for(int i = 0; i < 40; i++){
+            Geometry geo = new Geometry("Rect", new Quad(38, 38));
+            geo.setMaterial(mat);
+            geo.setLocalTranslation(new Vector3f(inventory.inventorySlots[i].rect.x, inventory.inventorySlots[i].rect.y, 0));
+            guiNode.attachChild(geo);
+        }*/
     }
     
     @Override
     public void simpleUpdate(float tpf) {
         player.update(tpf);
-        ObjectHelper.HighlightModel(cam, inputManager);
+        //ObjectHelper.HighlightModel(cam, inputManager);
         ObjectHelper.MoveModel(cam, inputManager, mainScene.sceneModel);
         sun.updateSun(tpf);
         hudText.setText(sun.timeOfDay.getHour() + ":" + sun.timeOfDay.getSecond());
@@ -89,5 +111,13 @@ public class Main extends SimpleApplication {
     @Override
     public void simpleRender(RenderManager rm) {
         
+    }
+
+    public void onAnimCycleDone(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    public void onAnimChange(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

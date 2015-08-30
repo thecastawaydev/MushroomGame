@@ -4,9 +4,12 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.collision.CollisionResult;
 import com.jme3.collision.CollisionResults;
 import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
 import com.jme3.input.RawInputListener;
 import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.AnalogListener;
 import com.jme3.input.controls.KeyTrigger;
+import com.jme3.input.controls.MouseButtonTrigger;
 import com.jme3.input.event.JoyAxisEvent;
 import com.jme3.input.event.JoyButtonEvent;
 import com.jme3.input.event.KeyInputEvent;
@@ -18,17 +21,19 @@ import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.math.Vector4f;
 import com.jme3.renderer.Camera;
-import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
+import tonegod.gui.controls.buttons.ButtonAdapter;
 import tonegod.gui.controls.extras.DragElement;
 import tonegod.gui.controls.windows.Window;
 import tonegod.gui.core.Element;
 import tonegod.gui.core.Screen;
+import tonegod.gui.core.layouts.LayoutHelper;
 import tonegod.gui.core.utils.UIDUtil;
 
-public class Inventory extends SimpleApplication implements RawInputListener, ActionListener {
+public class Inventory extends SimpleApplication implements RawInputListener, ActionListener, AnalogListener {
     
-private Screen screen;
+public Screen screen;
 private float iconSize = 40;
 Vector2f dim = new Vector2f();
 Vector4f windowPadding = new Vector4f();
@@ -43,23 +48,41 @@ CollisionResult closest;
 Camera cam;
 
 boolean showInventory = false;
-Element inventory;
+public Element inventory;
 Window win;
+InventorySlot[] inventorySlots;
+ButtonAdapter[] inventoryElements;
 
-public Inventory(Main main, Node guiNode, Node rootNode, Camera cam){
-    initInventory(main, guiNode, rootNode, cam);
+Element mouseFocusElement;
+Vector3f guiRayOrigin = new Vector3f();
+Ray elementZOrderRay = new Ray();
+CollisionResult lastCollision;
+Boolean mousePressed = false;
+float eventElementOffsetX = 0;
+float eventElementOffsetY = 0;
+Element contactElement = null;
+Spatial model;
+
+public Inventory(Main main, Node guiNode, Node rootNode, Camera cam, Spatial model){
+    initInventory(main, guiNode, rootNode, cam, model);
 }
-public void initInventory(Main main, Node guiNode, Node rootNode, Camera cam) {
+public void initInventory(Main main, Node guiNode, Node rootNode, Camera cam, Spatial model) {
 
+     inventorySlots = new InventorySlot[40];
+     inventoryElements = new ButtonAdapter[40];
 	createGUIScreen(main, guiNode);
 	layoutGUI();
 
         this.rootNode = rootNode;
         this.cam = cam;
-        
+        this.model = model;
                 
             Main.s_InputManager.addMapping("ShowInventory", new KeyTrigger(KeyInput.KEY_I));
     Main.s_InputManager.addListener(this, "ShowInventory");
+    Main.s_InputManager.addMapping("RightClick", new MouseButtonTrigger(MouseInput.BUTTON_RIGHT));
+    Main.s_InputManager.addListener(this, "RightClick");
+    
+   
 }
 
 
@@ -67,6 +90,8 @@ private void createGUIScreen(Main main, Node guiNode) {
 	screen = new Screen(main);
 	screen.setUseUIAudio(true);
 	screen.setUIAudioVolume(1f);
+        screen.setUseToolTips(true);
+        screen.setGlobalAlpha(0.4f);
 	guiNode.addControl(screen);
 
 }
@@ -87,17 +112,7 @@ private void layoutGUI() {
 		null
 	);
         
-        Element equipSlot = new Element(
-                screen,
-                UIDUtil.getUID(),
-                new Vector2f(windowPadding.x, (windowPadding.y*2) + dragBarHeight),
-                Vector2f.ZERO,
-                Vector4f.ZERO,
-                null
-                );
-        
 	inventory.setAsContainerOnly();
-        equipSlot.setAsContainerOnly();
         
 	for (int i = 0; i < 40; i++) {
             
@@ -117,41 +132,93 @@ private void layoutGUI() {
                     y = 3 * iconSize;
                     x = (i - 30) * iconSize + 2.5f;
                 }
-                Element e = createInventorySlot(i, x, y);
-                
+                 ButtonAdapter e = createButtonSlot(i, x, y); 
+                 
+                inventoryElements[i] = e;
+                inventorySlots[i] = new InventorySlot(i, 0, "empty");
+                e.setToolTipText(inventorySlots[i].itemName + " : " + inventorySlots[i].slotNumber + " : " + inventorySlots[i].quantity);
 		inventory.addChild(e);
+                
 	}
-        
-        for(int i = 0; i < 10; i++){
-            
-        }
+
 	inventory.sizeToContent();
 
 	dim.set(
 		inventory.getWidth()+(windowPadding.x*2),
 		inventory.getHeight()+(windowPadding.y*3)+dragBarHeight
 	);
+
 	 win = new Window(screen, Vector2f.ZERO, dim);
 	win.addChild(inventory);
-	win.setlockToParentBounds(true);
+	win.setLockToParentBounds(true);
 	win.setIsResizable(false);
 	screen.addElement(win);
 }
+private ButtonAdapter createButtonSlot(int index, float x, float y){
+       ButtonAdapter slot = new ButtonAdapter(
+            screen, 
+            "InvSlot" + index,
+            new Vector2f(x, y),
+            LayoutHelper.dimensions(40, 40),
+            screen.getStyle("CheckBox").getVector4f("resizeBorders"),
+            screen.getStyle("CheckBox").getString("defaultImg")
+            ){
+                @Override
+                public void onButtonMouseLeftUp(MouseButtonEvent evt, boolean toggled){
+                        int index = this.getUserData("Index");
+                        //if(inventorySlots[index].slotNumber == this.getUserData("Index"))
+                            if(inventorySlots[index].itemName != "empty"){
+                                Statics.s_ShowInventory = false;
+                                CollisionResults results = new CollisionResults();
+             Ray ray = new Ray();
+            Vector2f click2d = Main.s_InputManager.getCursorPosition();
+            Vector3f click3d = cam.getWorldCoordinates(new Vector2f(click2d.getX(), click2d.getY()), 0f);
+            Vector3f dir = cam.getWorldCoordinates(new Vector2f(click2d.getX(), click2d.getY()), 1f).subtractLocal(click3d).normalizeLocal();
+            ray.setOrigin(click3d);
+            ray.setDirection(dir);
+             ray = new Ray(click3d, dir);
+            model.collideWith(ray, results);
+            
+            if(results.size() > 0){
+                if(Statics.s_PlayerSettingModel == false){
+                
+                CollisionResult point = results.getClosestCollision();
+                Vector3f destination = point.getContactPoint();
 
-private Element createInventorySlot(int index, float x, float y) {
-	Element slot = new Element(
-		screen,
-		"InvSlot" + index,
-		new Vector2f(x,y),
-		new Vector2f(iconSize,iconSize),
-		screen.getStyle("CheckBox").getVector4f("resizeBorders"),
-		screen.getStyle("CheckBox").getString("defaultImg")
-	);
-	slot.setIsDragDropDropElement(true);
-	return slot;
+                 ObjectHelper.s_Model = ObjectHelper.AddModel(destination, inventorySlots[index].itemName);
+                
+                Main.s_TreeNode.attachChild(ObjectHelper.s_Model);
+                inventorySlots[index].quantity--;
+                inventoryElements[index].setToolTipText(inventorySlots[index].itemName + " : " + inventorySlots[index].slotNumber + " : " + inventorySlots[index].quantity);
+                if(inventorySlots[index].quantity <= 0){
+                    inventorySlots[index].itemName = "empty";
+                    inventoryElements[index].setToolTipText(inventorySlots[index].itemName + " : " + inventorySlots[index].slotNumber + " : " + inventorySlots[index].quantity);
+                    inventoryElements[index].setButtonIcon(0, 0, "Textures/blank.png");
+                    
+                }
+                Statics.s_PlayerSettingModel = true;
+                           
+                            
+                }
+                }
+                            }
+                    }
+                
+            };
+    slot.clearAltImages();
+    slot.setUserData("Index", index);
+    slot.setEffectZOrder(false);
+    slot.setScaleEW(false);
+    slot.setScaleNS(false);
+    slot.setDocking(Element.Docking.SW);
+    //slot.setButtonIcon(0, 0, "Textures/blank.png");
+    slot.setIsDragDropDragElement(true);
+    return slot;
+    
 }
 
-private DragElement createNewDragElement() {
+
+public DragElement createNewDragElement() {
 	DragElement e = new DragElement(
 		screen,
 		new Vector2f(
@@ -193,46 +260,23 @@ public void beginInput() {  }
 public void endInput() {  }
 public void onJoyAxisEvent(JoyAxisEvent evt) {  }
 public void onJoyButtonEvent(JoyButtonEvent evt) {  }
-public void onMouseMotionEvent(MouseMotionEvent evt) {  }
-public void onMouseButtonEvent(MouseButtonEvent evt) {
-	if (evt.getButtonIndex() == 0 && evt.isPressed()) {
-		click2d.set(Main.s_InputManager.getCursorPosition());
-		tempV2.set(click2d);
-		click3d.set(cam.getWorldCoordinates(tempV2, 0f));
-		pickDir.set(cam.getWorldCoordinates(tempV2, 1f).subtractLocal(click3d).normalizeLocal());
-		pickRay.setOrigin(click3d);
-		pickRay.setDirection(pickDir);
-		rayResults.clear();
-
-		// Check for targeting collision
-		rootNode.collideWith(pickRay, rayResults);
-		closest = rayResults.getClosestCollision();
-
-		if (closest != null) {
-			Geometry geom = closest.getGeometry();
-			Node parent = geom.getParent();
-			DragElement de = createNewDragElement();
-			de.setUserData("worldObject", parent);
-			parent.removeFromParent();
-		//	inputManager.setCursorVisible(true);
-		}
-	}
+public void onMouseMotionEvent(MouseMotionEvent evt) {
 }
+public void onMouseButtonEvent(MouseButtonEvent evt) {}
 public void onKeyEvent(KeyInputEvent evt) {  }
 public void onTouchEvent(TouchEvent evt) {  }
-
-    public void onAction(String name, boolean value, float tpf) {
-               if(name.equals("ShowInventory")){
+public void onAction(String name, boolean value, float tpf) {
+         if(name.equals("ShowInventory")){
             if(!value){
-                if(showInventory == true){
-                    showInventory = false;
+                if(Statics.s_ShowInventory == true){
+                    Statics.s_ShowInventory = false;
                 }else{
-                    showInventory = true;
+                    Statics.s_ShowInventory = true;
                 }
             }
         }
     }
-
+    
     @Override
     public void simpleInitApp() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
@@ -240,10 +284,14 @@ public void onTouchEvent(TouchEvent evt) {  }
     
     @Override
     public void simpleUpdate(float tpf) {
-    System.out.println(showInventory);
-    if(showInventory == true)
+
+    if(Statics.s_ShowInventory == true)
        win.show();
     else
       win.hide();
 }
+
+    public void onAnalog(String name, float value, float tpf) {
+   
+    }
 }

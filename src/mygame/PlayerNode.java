@@ -70,11 +70,13 @@ public class PlayerNode extends Node implements ActionListener, AnalogListener, 
         this.inputManager = inputManager;
         setUpKeys();
         
-        control = new AnimControl();
+//        setUpChannel();
+    }
+    private void setUpChannel(){
+        control = this.getControl(AnimControl.class);
         control.addListener(this);
         channel = control.createChannel();
     }
-    
     public void update(float tpf)
     {
         Vector3f camDir = cam.getDirection().clone();

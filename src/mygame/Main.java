@@ -1,8 +1,5 @@
 package mygame;
 
-import com.jme3.animation.AnimChannel;
-import com.jme3.animation.AnimControl;
-import com.jme3.animation.AnimEventListener;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
@@ -11,11 +8,13 @@ import com.jme3.font.BitmapText;
 import com.jme3.input.InputManager;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
+import com.jme3.post.FilterPostProcessor;
 import com.jme3.renderer.RenderManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import com.jme3.water.WaterFilter;
 
-public class Main extends SimpleApplication implements AnimEventListener{
+public class Main extends SimpleApplication{
 
     public static Node s_TreeNode;
     public static AssetManager s_AssetManager;
@@ -31,7 +30,7 @@ public class Main extends SimpleApplication implements AnimEventListener{
     BitmapText hudText;
     public static Inventory inventory;
     Rect testRect;
-    
+
     public static void main(String[] args) {
         Main app = new Main();
         app.start();
@@ -45,9 +44,7 @@ public class Main extends SimpleApplication implements AnimEventListener{
         s_AssetManager = assetManager;
         s_StateManager = stateManager;
         s_InputManager = inputManager;
-
-        
-        
+       
         ObjectHelper.LoadObjectHelper();
         ItemInformation.InitItemInfo();
         
@@ -58,7 +55,8 @@ public class Main extends SimpleApplication implements AnimEventListener{
         stateManager.attach(bulletAppState);
         
         mainScene = new Scene();
-        mainScene.initScene(rootNode);
+        mainScene.initScene(rootNode, viewPort);
+
         sun = new Sun();
         sun.initSun(rootNode, viewPort, cam);
         inventory = new Inventory(this, guiNode, rootNode, cam, mainScene.sceneModel);
@@ -111,13 +109,5 @@ public class Main extends SimpleApplication implements AnimEventListener{
     @Override
     public void simpleRender(RenderManager rm) {
         
-    }
-
-    public void onAnimCycleDone(AnimControl control, AnimChannel channel, String animName) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    public void onAnimChange(AnimControl control, AnimChannel channel, String animName) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }
